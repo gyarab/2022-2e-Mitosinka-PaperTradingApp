@@ -1,15 +1,14 @@
 package com.example.papertradingapp;
 
-import javafx.beans.Observable;
-import javafx.beans.binding.Bindings;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
+import javafx.scene.Group;
 import javafx.scene.chart.PieChart;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Region;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -17,15 +16,15 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 
+import static java.lang.System.err;
 import static java.lang.System.out;
 
-public class HelloController{
+public class HelloController {
 
     public HashMap<String, Double> portfolio = new HashMap<>();
     public ObservableList<PieChart.Data> pieChartData = FXCollections.observableArrayList();
@@ -40,7 +39,7 @@ public class HelloController{
     public Label balance;
 
     @FXML
-    public Button button;
+    public Button balanceButton;
 
     @FXML
     public TextField searchBar;
@@ -60,12 +59,53 @@ public class HelloController{
     @FXML
     public Label errorMessage;
 
+    public String currencyAndAmount1;
 
     @FXML
-    public void onSellButtonClick(){
+    public Button settingsButton;
+
+    @FXML
+    public Pane background;
+
+    @FXML
+    public Label searchCurrencyLabel;
+
+    @FXML
+    public Button darkModeButton;
+
+    @FXML
+    public Button closeSettingsButton;
+
+    @FXML
+    public void onCloseSettingsButtonClick(){
+        Group items = new Group(balance, balanceButton, searchBar, searchCurrencyLabel);
+        items.setVisible(true);
+        Group settingsItems = new Group(darkModeButton);
+        settingsItems.setVisible(false);
+    }
+
+    @FXML
+    public void onDarkModeButtonClick(){
+
+        background.setStyle(("-fx-background-color: #282828"));
+        sellButton.setStyle(("-fx-background-color: #282828"));
+    }
+
+
+    @FXML
+    public void onSettingsButtonClick(){
+        Group items = new Group(sellButton, balance, balanceButton, searchBar, priceLabel, amountBar, amountLabel, portfolioChart, errorMessage, searchCurrencyLabel);
+        items.setVisible(false);
+        Group settingsItems = new Group(darkModeButton, closeSettingsButton);
+        settingsItems.setVisible(true);
+
+    }
+
+
+    @FXML
+    public void onSellButtonClick() throws IOException {
         double pricePerToken;
         String temp;
-        double amountOfTokens;
 
         Scrapper scraping = new Scrapper();
 
@@ -75,7 +115,6 @@ public class HelloController{
 
         File dataFile = new File("Data.txt"); //file data
         Path dataPath = Paths.get("Data.txt"); //data path
-
         //creating data file, where all user data will be stored
         boolean result;
         try {
@@ -103,46 +142,76 @@ public class HelloController{
 
         //adding array values to each string
         currentMoney = dataString[0];
+        String[] temp1;
+        String currency;
+        String amountOfTokensYouOwn1;
+        double amountOfTokensYouOwn;
+        if (dataString.length > 1) {
+            currencyAndAmount1 = dataString[1];
+            temp1 = currencyAndAmount1.split("-");
+            currency = temp1[0];
+            amountOfTokensYouOwn1 = temp1[1];
+            amountOfTokensYouOwn = Double.parseDouble(amountOfTokensYouOwn1);
 
-        totalAmountOfMoney = Double.parseDouble(currentMoney);
-        String seekedCurrency = searchBar.getText();
-        scraping.currentPrice(seekedCurrency);
+            String seekedCurrency = searchBar.getText();
+            scraping.currentPrice(seekedCurrency);
 
-        Double buyingAmount = Double.parseDouble(amountBar.getText());
-        if(buyingAmount>totalAmountOfMoney){
-            //out.println("Entered amount is bigger then your current portfolio.");
-            //out.println("Please enter valid amount, your current portfolio is: ");
-            errorMessage.setVisible(true);
-            errorMessage.setText("Insufficient balance");
-            buyingAmount = Double.parseDouble(amountBar.getText());
-        }
-        errorMessage.setVisible(false);
-
-        temp = scraping.elements.text();
-        String currentPrice = temp;
-        currentPrice = currentPrice.replace("$", "");
-        currentPrice = currentPrice.replace(",","");
-
-        pricePerToken = Double.parseDouble(currentPrice);
-
-        amountOfTokens = buyingAmount/pricePerToken;
-
-        //out.println("you have right now: "+amountOfTokens+" tokens of "+seekedCurrency);
-
-
-        Double moneyLeft = totalAmountOfMoney-buyingAmount;
-        currentMoney=Double.toString(moneyLeft);
-
-        //rewriting data in dataFile
-        while(true) {
-            try {
-                Files.writeString(dataPath, currentMoney, StandardCharsets.UTF_8);
-                break;
-
-            } catch (IOException ex) {
-                out.println("Error, failed to save data.");
+            if (dataString.length > 0 && seekedCurrency != currency) {
+                errorMessage.setText("You dont have any of this currency");
+                sellButton.setVisible(false);
             }
+
+            errorMessage.setVisible(false);
+
+            temp = scraping.elements.text();
+            String currentPrice = temp;
+            currentPrice = currentPrice.replace("$", "");
+            currentPrice = currentPrice.replace(",", "");
+
+            pricePerToken = Double.parseDouble(currentPrice);
+            String sellingAmount = amountBar.getText();
+
+            double sellAmount = Double.parseDouble(sellingAmount);
+            double sellAmountOfTokens = sellAmount / pricePerToken;
+            if (sellAmountOfTokens > amountOfTokensYouOwn) {
+                errorMessage.setText("Entered amount is higher then your current amount of tokens");
+            }
+
+            //out.println("you have right now: "+amountOfTokens+" tokens of "+seekedCurrency);
+            totalAmountOfMoney = Double.parseDouble(currentMoney);
+            totalAmountOfMoney = totalAmountOfMoney + sellAmount;
+            currentMoney = Double.toString(totalAmountOfMoney);
+            balance.setText("Account balance: "+currentMoney+"$");
+
+            //rewriting data in dataFile
+            if (sellAmountOfTokens < amountOfTokensYouOwn) {
+                while (true) {
+                    try {
+                        Files.writeString(dataPath, currentMoney + " " + seekedCurrency + "-" + (amountOfTokensYouOwn - sellAmountOfTokens), StandardCharsets.UTF_8);
+                        break;
+
+                    } catch (IOException ex) {
+                        out.println("Error, failed to save data.");
+                    }
+                }
+            } else {
+                while (true) {
+                    try {
+                        Files.writeString(dataPath, currentMoney, StandardCharsets.UTF_8);
+                        break;
+
+                    } catch (IOException ex) {
+                        out.println("Error, failed to save data.");
+                    }
+                }
+            }
+
+
+        } else {
+            errorMessage.setText("Not enough searched currency.");
+            errorMessage.setVisible(true);
         }
+
         buyButton.setVisible(false);
         sellButton.setVisible(false);
 
@@ -153,11 +222,11 @@ public class HelloController{
 
 
     @FXML
-    public void onBuyButtonClick(){
+    public void onBuyButtonClick() {
         double pricePerToken;
         String temp;
         double amountOfTokens;
-
+        String currencyAndAmount1;
 
         Scrapper scraping = new Scrapper();
 
@@ -195,47 +264,60 @@ public class HelloController{
 
         //adding array values to each string
         currentMoney = dataString[0];
+        String[] temp1;
+        String currency;
+        String amountOfTokensYouOwn1;
+        if (dataString.length > 1) {
+            currencyAndAmount1 = dataString[1];
+            temp1 = currencyAndAmount1.split("-");
+            currency = temp1[0];
+            amountOfTokensYouOwn1 = temp1[1];
 
+            Double amountOfTokensYouOwn = Double.parseDouble(amountOfTokensYouOwn1);
 
+        }
 
         totalAmountOfMoney = Double.parseDouble(currentMoney);
-
 
 
         String seekedCurrency = searchBar.getText();
         scraping.currentPrice(seekedCurrency);
 
         Double buyingAmount = Double.valueOf(amountBar.getText());
-        while(buyingAmount>totalAmountOfMoney){
+        if (buyingAmount > totalAmountOfMoney) {
             //out.println("Entered amount is bigger then your current portfolio.");
             //out.println("Please enter valid amount, your current portfolio is: ");
+            errorMessage.setText("Not enough balance, current balance is: " + currentMoney);
+            errorMessage.setVisible(true);
             buyingAmount = Double.valueOf(amountBar.getText());
         }
 
         temp = scraping.elements.text();
         String currentPrice = temp;
         currentPrice = currentPrice.replace("$", "");
-        currentPrice = currentPrice.replace(",","");
+        currentPrice = currentPrice.replace(",", "");
 
         pricePerToken = Double.parseDouble(currentPrice);
 
-        amountOfTokens = buyingAmount/pricePerToken;
+        amountOfTokens = buyingAmount / pricePerToken;
+
+
+        pieChartData.add(new PieChart.Data(seekedCurrency, amountOfTokens));
+        portfolioChart.setData(pieChartData);
+        portfolioChart.setVisible(true);
 
         //out.println("you have right now: "+amountOfTokens+" tokens of "+seekedCurrency);
 
-        Double moneyLeft = totalAmountOfMoney-buyingAmount;
-        currentMoney=Double.toString(moneyLeft);
+        Double moneyLeft = totalAmountOfMoney - buyingAmount;
+        currentMoney = Double.toString(moneyLeft);
 
         portfolio.put(seekedCurrency, amountOfTokens);
         pieChartData.add(new PieChart.Data(seekedCurrency, amountOfTokens));
-
-        portfolioChart.setData(pieChartData);
-
-
+        balance.setText("Account balance: "+currentMoney+"$");
         //rewriting data in dataFile
-        while(true) {
+        while (true) {
             try {
-                Files.writeString(dataPath, currentMoney, StandardCharsets.UTF_8);
+                Files.writeString(dataPath, currentMoney + " " + seekedCurrency + "-" + amountOfTokens, StandardCharsets.UTF_8);
                 break;
 
             } catch (IOException ex) {
@@ -251,9 +333,8 @@ public class HelloController{
     }
 
 
-
     @FXML
-    public void onSearchBarAction(){
+    public void onSearchBarAction() {
         double pricePerToken;
         String temp;
         double amountOfTokens;
@@ -265,6 +346,7 @@ public class HelloController{
         double totalAmountOfMoney;
         String currentMoney;
 
+        errorMessage.setVisible(false);
         File dataFile = new File("Data.txt"); //file data
 
 
@@ -295,7 +377,6 @@ public class HelloController{
 
         //adding array values to each string
         currentMoney = dataString[0];
-
 
 
         totalAmountOfMoney = Double.parseDouble(currentMoney);
@@ -315,7 +396,7 @@ public class HelloController{
         temp = scraping.elements.text();
         String currentPrice = temp;
         currentPrice = currentPrice.replace("$", "");
-        currentPrice = currentPrice.replace(",","");
+        currentPrice = currentPrice.replace(",", "");
 
 
         out.println(currentPrice);
@@ -328,11 +409,11 @@ public class HelloController{
         //Double moneyLeft = totalAmountOfMoney-buyingAmount;
         //currentMoney=Double.toString(moneyLeft);
         seekedCurrency = Character.toUpperCase(seekedCurrency.charAt(0)) + seekedCurrency.substring(1);
-        if(seekedCurrency.equals("bnb")){
+        if (seekedCurrency.equals("bnb")) {
             seekedCurrency = "BNB";
         }
         priceLabel.setVisible(true);
-        priceLabel.setText("Current price of "+seekedCurrency+" is "+currentPrice+"$");
+        priceLabel.setText("Current price of " + seekedCurrency + " is " + currentPrice + "$");
         priceLabel.setAlignment(Pos.CENTER);
         buyButton.setVisible(true);
         sellButton.setVisible(true);
@@ -344,12 +425,12 @@ public class HelloController{
     }
 
     @FXML
-    public void onCheckBalanceButtonClick(){
+    public void onCheckBalanceButtonClick() {
         accountBalance();
     }
 
     @FXML
-    public void accountBalance(){
+    public void accountBalance() {
 
 
         String data = "";
@@ -388,23 +469,10 @@ public class HelloController{
         currentMoney = dataString[0];
 
 
-
         totalAmountOfMoney = Double.parseDouble(currentMoney);
-        out.println("Current balance is: "+totalAmountOfMoney+"$");
+        out.println("Current balance is: " + totalAmountOfMoney + "$");
 
-        balance.setText("Account balance: "+totalAmountOfMoney+ "$");
-
-        //rewriting data in dataFile
-        while(true) {
-            try {
-                Files.writeString(dataPath, currentMoney, StandardCharsets.UTF_8);
-                break;
-
-            } catch (IOException ex) {
-                out.println("Error, failed to save data.");
-            }
-        }
-
+        balance.setText("Account balance: " + totalAmountOfMoney + "$");
 
 
     }

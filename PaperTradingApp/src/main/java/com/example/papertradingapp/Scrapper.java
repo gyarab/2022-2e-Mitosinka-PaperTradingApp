@@ -25,7 +25,6 @@ public class Scrapper {
                 return;
             }
             elements = document.getElementsByClass("priceValue");
-
     }
 
 
